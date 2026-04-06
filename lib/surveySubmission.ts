@@ -16,12 +16,17 @@ type SubmitSurveyResponseResult = {
 export async function submitSurveyResponse(
   input: SubmitSurveyResponseInput
 ): Promise<SubmitSurveyResponseResult> {
-  const db = getFirebaseDb();
-  const docRef = await addDoc(collection(db, "surveyResponses"), {
-    ...input,
-    submittedAt: serverTimestamp(),
-    submittedAtIso: new Date().toISOString(),
-  });
+  try {
+    const db = getFirebaseDb();
+    const docRef = await addDoc(collection(db, "surveyResponses"), {
+      ...input,
+      submittedAt: serverTimestamp(),
+      submittedAtIso: new Date().toISOString(),
+    });
 
-  return { id: docRef.id };
+    return { id: docRef.id };
+  } catch (error) {
+    console.error("Firestore save error:", error);
+    throw error;
+  }
 }

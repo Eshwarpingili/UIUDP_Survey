@@ -11,6 +11,7 @@ import { QuestionRenderer } from "@/components/survey/QuestionRenderer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEMOGRAPHIC_STEP_COUNT } from "@/lib/demographicsConfig";
+import { getMissingFirebaseEnvironmentVariables, isFirebaseConfigured } from "@/lib/firebase";
 import { submitSurveyResponse } from "@/lib/surveySubmission";
 import { PERSONA_LABELS, surveyConfig, type Persona, type Question } from "@/lib/surveyConfig";
 import { defaultQuestionValue, flattenSurveyQuestions } from "@/lib/surveyHelpers";
@@ -113,6 +114,8 @@ export function SurveyFlow({ persona, onBackToDemographics }: SurveyFlowProps) {
   const [submittedResponses, setSubmittedResponses] = useState<Record<string, unknown> | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [firebaseReady] = useState(() => isFirebaseConfigured());
+  const [missingFirebaseVars] = useState(() => getMissingFirebaseEnvironmentVariables());
 
   const formSchema = useMemo(() => {
     const shape: Record<string, z.ZodTypeAny> = {};
@@ -184,6 +187,17 @@ export function SurveyFlow({ persona, onBackToDemographics }: SurveyFlowProps) {
 
     setSubmittedResponses(responsePayload);
     setPhase("insights");
+
+    if (!firebaseReady) {
+      const detail =
+        missingFirebaseVars.length > 0
+          ? ` Missing: ${missingFirebaseVars.join(", ")}.`
+          : "";
+      setSubmitError(
+        `Firebase is not configured for this deployment. Your response was not saved online.${detail} You can still download your JSON below.`
+      );
+      return;
+    }
 
     void submitSurveyResponse({
       persona,
