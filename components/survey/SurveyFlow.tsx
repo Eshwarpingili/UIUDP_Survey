@@ -11,6 +11,7 @@ import { QuestionRenderer } from "@/components/survey/QuestionRenderer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEMOGRAPHIC_STEP_COUNT } from "@/lib/demographicsConfig";
+import { submitSurveyResponse } from "@/lib/surveySubmission";
 import { PERSONA_LABELS, surveyConfig, type Persona, type Question } from "@/lib/surveyConfig";
 import { defaultQuestionValue, flattenSurveyQuestions } from "@/lib/surveyHelpers";
 import { generateSuggestions } from "@/lib/suggestions";
@@ -110,6 +111,8 @@ export function SurveyFlow({ persona, onBackToDemographics }: SurveyFlowProps) {
 
   const [phase, setPhase] = useState<"survey" | "insights" | "final">("survey");
   const [submittedResponses, setSubmittedResponses] = useState<Record<string, unknown> | null>(null);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const formSchema = useMemo(() => {
     const shape: Record<string, z.ZodTypeAny> = {};
@@ -169,12 +172,31 @@ export function SurveyFlow({ persona, onBackToDemographics }: SurveyFlowProps) {
   const currentFlowStep = DEMOGRAPHIC_STEP_COUNT + Math.max(answeredRequiredCount, 1);
 
   const onSubmit = (data: SurveyFormValues) => {
+    setSubmitError(null);
+    setSubmissionId(null);
+
+    const responsePayload: Record<string, unknown> = {};
+
     for (const item of questionList) {
       setAnswer(item.question.id, data[item.question.id]);
+      responsePayload[item.question.id] = data[item.question.id];
     }
 
-    setSubmittedResponses(data);
+    setSubmittedResponses(responsePayload);
     setPhase("insights");
+
+    void submitSurveyResponse({
+      persona,
+      demographics,
+      responses: responsePayload,
+    })
+      .then((result) => {
+        setSubmissionId(result.id);
+      })
+      .catch((error) => {
+        console.error("Failed to save survey response to Firestore", error);
+        setSubmitError("We could not save your response online. You can still download your JSON below.");
+      });
   };
 
   const onBack = () => {
@@ -315,6 +337,12 @@ export function SurveyFlow({ persona, onBackToDemographics }: SurveyFlowProps) {
               ))}
             </ul>
 
+            {submitError ? (
+              <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {submitError}
+              </p>
+            ) : null}
+
             <div className="flex items-center justify-between gap-3">
               <Button type="button" variant="outline" onClick={onBack} className="min-h-11 px-5">
                 Back
@@ -333,6 +361,18 @@ export function SurveyFlow({ persona, onBackToDemographics }: SurveyFlowProps) {
             <p className="text-base text-muted-foreground">
               Your responses have been prepared in a JSON file format that you can download.
             </p>
+
+            {submissionId ? (
+              <p className="rounded-xl border border-emerald-300/70 bg-emerald-100/60 px-4 py-3 text-sm text-emerald-900">
+                Response saved to Firestore. Submission ID: {submissionId}
+              </p>
+            ) : null}
+
+            {submitError ? (
+              <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {submitError}
+              </p>
+            ) : null}
 
             <div className="rounded-xl border bg-background/60 p-4">
               <pre className="overflow-x-auto text-xs leading-relaxed text-foreground">
